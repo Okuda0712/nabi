@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "deny": [
+      "Read(**/.env)",
+      "Edit(**/.claude/**)",
+      "Bash(rm -rf *)",
+      "Bash(rmdir /s *)",
+      "Bash(del /s *)",
+      "Bash(erase *)",
+      "Bash(rd /s *)",
+      "Bash(Remove-Item -Recurse *)",
+      "Bash(ri -Recurse *)",
+      "Bash(git push *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(Invoke-WebRequest *)",
+      "Bash(iwr *)",
+      "Bash(Invoke-RestMethod *)",
+      "Bash(irm *)",
+      "Bash(format *)",
+      "Bash(npm install -g *)",
+      "Bash(npm i -g *)",
+      "Bash(npm install --global *)",
+      "Bash(npm i --global *)",
+      "Bash(npm -g install *)",
+      "Bash(npm --global install *)",
+      "Bash(npm link *)"
+    ]
+  }
+}

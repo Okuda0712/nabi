@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ワイヤーフレーム｜ええやん！大阪ナビ</title>
+  <style>
+    /* ===== リセット・基本 ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f0f0f0; color: #333; font-size: 14px; }
+
+    /* ===== ワイヤーフレーム共通スタイル ===== */
+    .wf-box {
+      background: #fff;
+      border: 2px dashed #aaa;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #888;
+      font-size: 12px;
+      text-align: center;
+      padding: 4px;
+    }
+    .wf-label {
+      font-size: 10px;
+      color: #aaa;
+      margin-bottom: 2px;
+    }
+
+    /* ===== 画面切り替えタブ ===== */
+    .screen-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 16px 24px 0;
+      background: #ddd;
+    }
+    .screen-tab {
+      padding: 8px 20px;
+      background: #bbb;
+      border: none;
+      border-radius: 6px 6px 0 0;
+      cursor: pointer;
+      font-size: 13px;
+      color: #555;
+    }
+    .screen-tab.active {
+      background: #f0f0f0;
+      color: #333;
+      font-weight: bold;
+    }
+
+    /* ===== 画面コンテナ ===== */
+    .screen { display: none; padding: 0; }
+    .screen.active { display: block; }
+
+    /* ===== アノテーション凡例 ===== */
+    .legend {
+      background: #fffde7;
+      border: 1px solid #f9a825;
+      border-radius: 4px;
+      padding: 8px 16px;
+      margin: 12px 24px;
+      font-size: 12px;
+      color: #555;
+    }
+    .legend span { font-weight: bold; color: #f57f17; }
+
+    /* ===== 機能バッジ ===== */
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-weight: bold;
+      margin-left: 4px;
+    }
+    .badge-must { background: #ffcdd2; color: #c62828; }
+    .badge-want { background: #e1bee7; color: #6a1b9a; }
+
+    /* =========================================
+       画面①：メイン地図画面
+    ========================================= */
+    #screen-main .app-shell {
+      display: grid;
+      grid-template-rows: 56px 1fr;
+      height: calc(100vh - 100px);
+      min-height: 600px;
+      background: #fafafa;
+      border: 2px solid #999;
+      margin: 0 24px 24px;
+    }
+
+    /* ヘッダー */
+    #screen-main .header {
+      background: #444;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+    #screen-main .header .app-title {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+    }
+    #screen-main .header .header-right {
+      font-size: 11px;
+      color: #ccc;
+    }
+
+    /* メインレイアウト */
+    #screen-main .main-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      overflow: hidden;
+    }
+
+    /* サイドパネル */
+    #screen-main .side-panel {
+      background: #f7f7f7;
+      border-right: 2px solid #ccc;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #screen-main .side-section {
+      padding: 10px 12px;
+      border-bottom: 1px solid #ddd;
+    }
+    #screen-main .side-section-title {
+      font-size: 11px;
+      font-weight: bold;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* 検索ボックス M-3 */
+    #screen-main .search-box {
+      display: flex;
+      gap: 6px;
+    }
+    #screen-main .search-input {
+      flex: 1;
+      padding: 6px 10px;
+      border: 2px solid #bbb;
+      border-radius: 4px;
+      background: #fff;
+      font-size: 13px;
+      color: #888;
+    }
+    #screen-main .search-btn {
+      padding: 6px 12px;
+      background: #555;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* カテゴリフィルタ M-1 */
+    #screen-main .filter-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    #screen-main .chip {
+      padding: 3px 10px;
+      border: 2px solid #bbb;
+      border-radius: 12px;
+      font-size: 11px;
+      background: #fff;
+      cursor: pointer;
+      color: #555;
+    }
+    #screen-main .chip.selected {
+      background: #444;
+      color: #fff;
+      border-color: #444;
+    }
+
+    /* ルート入力 M-2 */
+    #screen-main .route-inputs {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    #screen-main .route-input-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #screen-main .route-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    #screen-main .route-input {
+      flex: 1;
+      padding: 5px 8px;
+      border: 2px solid #bbb;
+      border-radius: 4px;
+      background: #fff;
+      font-size: 12px;
+      color: #888;
+    }
+    #screen-main .route-calc-btn {
+      width: 100%;
+      padding: 7px;
+      margin-top: 6px;
+      background: #666;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* スポット一覧 */
+    #screen-main .spot-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+    #screen-main .spot-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+    #screen-main .spot-item:hover { background: #eee; }
+    #screen-main .spot-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #bbb;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    #screen-main .spot-info { flex: 1; min-width: 0; }
+    #screen-main .spot-name { font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #screen-main .spot-sub { font-size: 11px; color: #999; }
+    #screen-main .spot-star { font-size: 11px; color: #f9a825; }
+
+    /* 地図エリア */
+    #screen-main .map-area {
+      position: relative;
+      background: #e8e8e8;
+      overflow: hidden;
+    }
+    #screen-main .map-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      color: #aaa;
+      font-size: 13px;
+      gap: 8px;
+    }
+    #screen-main .map-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(#ccc 1px, transparent 1px),
+        linear-gradient(90deg, #ccc 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.4;
+    }
+    #screen-main .map-pin {
+      position: absolute;
+      font-size: 20px;
+      transform: translate(-50%, -100%);
+      cursor: pointer;
+    }
+    #screen-main .map-overlay-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: #444;
+      box-shadow: 0 1px 4px rgba(0,0,0,.15);
+    }
+    #screen-main .map-popup {
+      position: absolute;
+      top: 120px;
+      left: 55%;
+      background: #fff;
+      border: 2px solid #888;
+      border-radius: 6px;
+      padding: 10px 14px;
+      min-width: 160px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+      font-size: 12px;
+    }
+    #screen-main .popup-title { font-weight: bold; font-size: 13px; margin-bottom: 4px; }
+    #screen-main .popup-row { color: #666; margin-bottom: 2px; }
+    #screen-main .popup-arrow {
+      position: absolute;
+      bottom: -10px;
+      left: 20px;
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 10px solid #888;
+    }
+
+    /* =========================================
+       画面②：ルート結果画面
+    ========================================= */
+    #screen-route .app-shell {
+      display: grid;
+      grid-template-rows: 56px 1fr;
+      height: calc(100vh - 100px);
+      min-height: 600px;
+      background: #fafafa;
+      border: 2px solid #999;
+      margin: 0 24px 24px;
+    }
+    #screen-route .header {
+      background: #444;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+    #screen-route .header .app-title { font-size: 18px; font-weight: bold; }
+    #screen-route .back-btn {
+      font-size: 12px;
+      background: #666;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 12px;
+      cursor: pointer;
+    }
+    #screen-route .main-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      overflow: hidden;
+    }
+    #screen-route .side-panel {
+      background: #f7f7f7;
+      border-right: 2px solid #ccc;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      gap: 12px;
+      overflow-y: auto;
+    }
+    #screen-route .route-summary {
+      background: #fff;
+      border: 2px solid #ccc;
+      border-radius: 6px;
+      padding: 10px;
+    }
+    #screen-route .route-summary-title { font-weight: bold; font-size: 13px; margin-bottom: 6px; }
+    #screen-route .route-stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 3px;
+    }
+    #screen-route .route-steps { display: flex; flex-direction: column; gap: 0; }
+    #screen-route .step-item {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    #screen-route .step-line-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 24px;
+      flex-shrink: 0;
+    }
+    #screen-route .step-circle {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #666;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    #screen-route .step-line {
+      width: 2px;
+      flex: 1;
+      min-height: 24px;
+      background: #bbb;
+    }
+    #screen-route .step-content {
+      flex: 1;
+      padding-bottom: 14px;
+    }
+    #screen-route .step-name { font-size: 13px; font-weight: bold; }
+    #screen-route .step-sub { font-size: 11px; color: #999; }
+    #screen-route .map-area {
+      position: relative;
+      background: #e8e8e8;
+      overflow: hidden;
+    }
+    #screen-route .map-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(#ccc 1px, transparent 1px),
+        linear-gradient(90deg, #ccc 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.4;
+    }
+    #screen-route .route-line {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+    #screen-route .map-pin { position: absolute; font-size: 20px; transform: translate(-50%, -100%); }
+
+    /* =========================================
+       アノテーション
+    ========================================= */
+    .annotation-list {
+      margin: 0 24px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .annotation-item {
+      display: flex;
+      gap: 10px;
+      font-size: 12px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 6px 12px;
+      align-items: center;
+    }
+    .ann-num {
+      background: #555;
+      color: #fff;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- 画面切り替えタブ -->
+<div class="screen-tabs">
+  <button class="screen-tab active" onclick="switchScreen('main', this)">画面① メイン地図</button>
+  <button class="screen-tab" onclick="switchScreen('route', this)">画面② ルート結果</button>
+</div>
+
+<!-- ============================================
+     画面① メイン地図画面
+============================================ -->
+<div id="screen-main" class="screen active">
+
+  <div class="legend">
+    <span>凡例：</span>
+    M-1 一覧・分類表示 ／ M-2 ルート計算 ／ M-3 検索機能
+    （<span>MUST</span> = 必須実装）
+  </div>
+
+  <div class="app-shell">
+
+    <!-- ヘッダー -->
+    <div class="header">
+      <div class="app-title">ええやん！大阪ナビ</div>
+      <div class="header-right">大阪市観光GISアプリ</div>
+    </div>
+
+    <!-- メインレイアウト -->
+    <div class="main-layout">
+
+      <!-- サイドパネル -->
+      <div class="side-panel">
+
+        <!-- M-3 検索 -->
+        <div class="side-section">
+          <div class="side-section-title">
+            検索 <span class="badge badge-must">M-3</span>
+          </div>
+          <div class="search-box">
+            <div class="search-input" style="line-height:1.4">施設名・地名で検索...</div>
+            <div class="search-btn">検索</div>
+          </div>
+        </div>
+
+        <!-- M-1 カテゴリフィルタ -->
+        <div class="side-section">
+          <div class="side-section-title">
+            カテゴリ <span class="badge badge-must">M-1</span>
+          </div>
+          <div class="filter-chips">
+            <div class="chip selected">すべて</div>
+            <div class="chip">観光施設</div>
+            <div class="chip">文化財</div>
+            <div class="chip">公園</div>
+          </div>
+        </div>
+
+        <!-- M-2 ルート入力 -->
+        <div class="side-section">
+          <div class="side-section-title">
+            ルート計算 <span class="badge badge-must">M-2</span>
+          </div>
+          <div class="route-inputs">
+            <div class="route-input-row">
+              <div class="route-dot" style="background:#2ecc71;border:2px solid #27ae60;"></div>
+              <div class="route-input">スタート地点を入力...</div>
+            </div>
+            <div class="route-input-row">
+              <div class="route-dot" style="background:#e74c3c;border:2px solid #c0392b;"></div>
+              <div class="route-input">ゴール地点を入力...</div>
+            </div>
+            <div class="route-calc-btn">ルートを計算する →</div>
+          </div>
+        </div>
+
+        <!-- スポット一覧 M-1 -->
+        <div class="side-section" style="border-bottom:none; padding-bottom:0;">
+          <div class="side-section-title">
+            スポット一覧 <span class="badge badge-must">M-1</span>
+          </div>
+        </div>
+        <div class="spot-list">
+          <div class="spot-item">
+            <div class="spot-icon">🏯</div>
+            <div class="spot-info">
+              <div class="spot-name">大阪城</div>
+              <div class="spot-sub">中央区 ・ 文化財</div>
+              <div class="spot-star">★★★★★</div>
+            </div>
+          </div>
+          <div class="spot-item">
+            <div class="spot-icon">🎡</div>
+            <div class="spot-info">
+              <div class="spot-name">海遊館</div>
+              <div class="spot-sub">港区 ・ 観光施設</div>
+              <div class="spot-star">★★★★☆</div>
+            </div>
+          </div>
+          <div class="spot-item">
+            <div class="spot-icon">🛍️</div>
+            <div class="spot-info">
+              <div class="spot-name">道頓堀</div>
+              <div class="spot-sub">中央区 ・ 観光施設</div>
+              <div class="spot-star">★★★★☆</div>
+            </div>
+          </div>
+          <div class="spot-item">
+            <div class="spot-icon">⛩️</div>
+            <div class="spot-info">
+              <div class="spot-name">住吉大社</div>
+              <div class="spot-sub">住吉区 ・ 文化財</div>
+              <div class="spot-star">★★★★☆</div>
+            </div>
+          </div>
+          <div class="spot-item" style="color:#aaa; font-size:12px; justify-content:center;">
+            …他 42 件
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 地図エリア -->
+      <div class="map-area">
+        <div class="map-grid"></div>
+
+        <!-- ピン（位置はダミー） -->
+        <div class="map-pin" style="top:35%;left:55%;">📍</div>
+        <div class="map-pin" style="top:55%;left:30%;">📍</div>
+        <div class="map-pin" style="top:50%;left:60%;">📍</div>
+        <div class="map-pin" style="top:70%;left:45%;">📍</div>
+        <div class="map-pin" style="top:40%;left:40%;">📍</div>
+
+        <!-- ポップアップ（M-1） -->
+        <div class="map-popup">
+          <div class="popup-title">大阪城</div>
+          <div class="popup-row">📍 中央区大阪城1</div>
+          <div class="popup-row">🏷 文化財</div>
+          <div class="popup-row" style="margin-top:6px;">
+            <span style="background:#eee;padding:2px 8px;border-radius:3px;font-size:11px;cursor:pointer;">ルートに追加</span>
+          </div>
+          <div class="popup-arrow"></div>
+        </div>
+
+        <!-- 件数バッジ -->
+        <div class="map-overlay-badge">表示中：46件</div>
+
+        <!-- 地図ラベル -->
+        <div class="map-placeholder" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.7);border-radius:4px;padding:4px 12px;">
+          <span style="font-size:11px;color:#999;">（地図タイル：国土地理院）</span>
+        </div>
+      </div>
+
+    </div><!-- /main-layout -->
+  </div><!-- /app-shell -->
+
+  <!-- アノテーション -->
+  <div class="annotation-list">
+    <div class="annotation-item">
+      <div class="ann-num">①</div>
+      <div><b>検索ボックス（M-3）</b>：施設名・地名でキーワード入力 → 一致するピンのみ地図に表示</div>
+    </div>
+    <div class="annotation-item">
+      <div class="ann-num">②</div>
+      <div><b>カテゴリチップ（M-1）</b>：「観光施設」「文化財」などでフィルタ。複数選択可。</div>
+    </div>
+    <div class="annotation-item">
+      <div class="ann-num">③</div>
+      <div><b>ルート入力（M-2）</b>：スタート・ゴールを入力して「ルートを計算する」→ 画面②へ遷移</div>
+    </div>
+    <div class="annotation-item">
+      <div class="ann-num">④</div>
+      <div><b>スポット一覧（M-1）</b>：クリックで地図がその位置に移動してポップアップを開く</div>
+    </div>
+    <div class="annotation-item">
+      <div class="ann-num">⑤</div>
+      <div><b>ポップアップ（M-1）</b>：ピンクリック時に施設名・住所・カテゴリを表示。「ルートに追加」ボタンあり。</div>
+    </div>
+    <div class="annotation-item">
+      <div class="ann-num">⑥</div>
+      <div><b>件数バッジ</b>：現在表示中のスポット件数をリアルタイム表示</div>
+    </div>
+  </div>
+
+</div><!-- /screen-main -->
+
+<!-- ============================================
+     画面② ルート結果画面
+============================================ -->
+<div id="screen-route" class="screen">
+
+  <div class="legend">
+    <span>M-2</span> ルートを計算した結果の画面。効率的な順番でスポットを表示します。
+  </div>
+
+  <div class="app-shell">
+
+    <!-- ヘッダー -->
+    <div class="header">
+      <div class="app-title">ええやん！大阪ナビ</div>
+      <div class="back-btn">← 地図に戻る</div>
+    </div>
+
+    <div class="main-layout">
+
+      <!-- サイドパネル（ルート結果） -->
+      <div class="side-panel">
+
+        <!-- ルートサマリー -->
+        <div class="route-summary">
+          <div class="route-summary-title">ルートサマリー <span class="badge badge-must">M-2</span></div>
+          <div class="route-stat-row"><span>スポット数</span><b>4か所</b></div>
+          <div class="route-stat-row"><span>総移動距離（直線）</span><b>約 8.2 km</b></div>
+          <div class="route-stat-row"><span>推定移動時間</span><b>約 2 時間</b></div>
+        </div>
+
+        <!-- ルートステップ -->
+        <div class="route-steps">
+
+          <div class="step-item">
+            <div class="step-line-col">
+              <div class="step-circle" style="background:#2ecc71;">出</div>
+              <div class="step-line"></div>
+            </div>
+            <div class="step-content">
+              <div class="step-name">大阪駅（スタート）</div>
+              <div class="step-sub">北区</div>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-line-col">
+              <div class="step-circle">1</div>
+              <div class="step-line"></div>
+            </div>
+            <div class="step-content">
+              <div class="step-name">大阪城</div>
+              <div class="step-sub">中央区 ・ 文化財 ／ ↑ 2.3 km</div>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-line-col">
+              <div class="step-circle">2</div>
+              <div class="step-line"></div>
+            </div>
+            <div class="step-content">
+              <div class="step-name">道頓堀</div>
+              <div class="step-sub">中央区 ・ 観光施設 ／ ↑ 1.8 km</div>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-line-col">
+              <div class="step-circle">3</div>
+              <div class="step-line"></div>
+            </div>
+            <div class="step-content">
+              <div class="step-name">海遊館</div>
+              <div class="step-sub">港区 ・ 観光施設 ／ ↑ 3.1 km</div>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-line-col">
+              <div class="step-circle" style="background:#e74c3c;">着</div>
+            </div>
+            <div class="step-content">
+              <div class="step-name">住吉大社（ゴール）</div>
+              <div class="step-sub">住吉区 ／ ↑ 1.0 km</div>
+            </div>
+          </div>
+
+        </div><!-- /route-steps -->
+
+      </div><!-- /side-panel -->
+
+      <!-- 地図エリア -->
+      <div class="map-area">
+        <div class="map-grid"></div>
+
+        <!-- ルート線（SVG） -->
+        <svg class="route-line" viewBox="0 0 600 500" preserveAspectRatio="none">
+          <polyline points="200,80 300,160 340,260 250,350 180,440"
+            fill="none" stroke="#3498db" stroke-width="3" stroke-dasharray="8,4"/>
+        </svg>
+
+        <!-- ピン -->
+        <div class="map-pin" style="top:13%;left:33%;" title="大阪駅">🟢</div>
+        <div class="map-pin" style="top:28%;left:50%;" title="大阪城">1️⃣</div>
+        <div class="map-pin" style="top:48%;left:56%;" title="道頓堀">2️⃣</div>
+        <div class="map-pin" style="top:65%;left:42%;" title="海遊館">3️⃣</div>
+        <div class="map-pin" style="top:83%;left:30%;" title="住吉大社">🔴</div>
+
+        <div class="map-overlay-badge">ルート表示中</div>
+      </div>
+
+    </div><!-- /main-layout -->
+  </div><!-- /app-shell -->
+
+  <div class="annotation-list">
+    <div class="annotation-item">
+      <div class="ann-num">①</div>
+      <div><b>ルートサマリー</b>：スポット数・総距離・推定時間を表示</div>
+    </div>
+    <div class="annotation-item">
+      <div class="ann-num">②</div>
+      <div><b>ステップリスト（M-2）</b>：効率的な順番でスポットを縦に並べ、区間距離を表示</div>
+    </div>
+    <div class="annotation-item">
+      <div class="ann-num">③</div>
+      <div><b>地図上のルート線</b>：スタート→各スポット→ゴールを破線でつなぐ</div>
+    </div>
+    <div class="annotation-item">
+      <div class="ann-num">④</div>
+      <div><b>「地図に戻る」ボタン</b>：画面①に戻る。ルート入力の内容は保持する。</div>
+    </div>
+  </div>
+
+</div><!-- /screen-route -->
+
+<script>
+  function switchScreen(id, btn) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.screen-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('screen-' + id).classList.add('active');
+    btn.classList.add('active');
+  }
+</script>
+
+</body>
+</html>

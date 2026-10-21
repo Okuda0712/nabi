@@ -1,0 +1,1750 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ええやん！大阪ナビ</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; }
+
+    .header {
+      background: #444;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      height: 56px;
+      flex-shrink: 0;
+    }
+    .header .app-title { font-size: 18px; font-weight: bold; letter-spacing: 0.05em; }
+    .header .header-right { font-size: 12px; color: #ccc; }
+
+    .main-layout { display: flex; flex: 1; overflow: hidden; }
+
+    .side-panel {
+      width: 250px;
+      background: #f7f7f7;
+      border-right: 2px solid #ccc;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .side-section { padding: 10px 12px; border-bottom: 1px solid #ddd; }
+    .side-section-title {
+      font-size: 11px;
+      font-weight: bold;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    /* チップ */
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .chip {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border: 2px solid #bbb; border-radius: 14px;
+      font-size: 12px; background: #fff; cursor: pointer; color: #555;
+      user-select: none; transition: opacity 0.15s;
+    }
+    .chip.active { color: #fff; border-color: transparent; }
+    .chip.inactive { opacity: 0.4; }
+    .chip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .chip-count {
+      font-size: 10px; background: rgba(0,0,0,0.15);
+      border-radius: 8px; padding: 0 5px; min-width: 18px; text-align: center;
+    }
+    /* 星フィルタ */
+    .star-filter-row {
+      margin-top: 8px; padding-top: 6px; border-top: 1px solid #eee; display: none;
+    }
+    .star-filter-label { font-size: 10px; color: #888; margin-bottom: 5px; }
+    .star-filter-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+    .star-filter-btn {
+      padding: 3px 9px; border: 1.5px solid #ddd; border-radius: 10px;
+      font-size: 11px; background: #fff; color: #555; cursor: pointer;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .star-filter-btn:hover { border-color: #f39c12; color: #e67e22; }
+    .star-filter-btn.active {
+      background: #f39c12; border-color: #f39c12; color: #fff; font-weight: bold;
+    }
+
+    .total-row { font-size: 12px; color: #444; }
+    .total-row b { font-size: 14px; }
+
+    /* キーワード検索 */
+    .search-box { display: flex; gap: 4px; margin-bottom: 6px; }
+    #search-input {
+      flex: 1; padding: 5px 8px; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 12px;
+    }
+    #search-input:focus { outline: none; border-color: #2980b9; }
+    #search-clear {
+      background: #eee; border: 1px solid #ccc; border-radius: 6px;
+      font-size: 13px; color: #888; cursor: pointer; padding: 0 8px;
+    }
+    #search-clear:hover { background: #ddd; }
+    .search-count { font-size: 11px; color: #888; margin-bottom: 4px; }
+    #search-results { max-height: 200px; overflow-y: auto; }
+    .search-result-item {
+      padding: 5px 4px; border-bottom: 1px solid #eee; cursor: pointer;
+    }
+    .search-result-item:last-child { border-bottom: none; }
+    .search-result-item:hover { background: #eaf4fb; border-radius: 4px; }
+    .search-result-name { font-size: 12px; color: #333; font-weight: bold; }
+    .search-result-addr { font-size: 11px; color: #888; }
+    .search-result-label { font-size: 10px; color: #2980b9; }
+
+    /* スポット選択リスト */
+    .route-hint { font-size: 11px; color: #888; margin-bottom: 8px; line-height: 1.5; }
+
+    .spot-empty { font-size: 12px; color: #bbb; font-style: italic; margin-bottom: 6px; }
+
+    .spot-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 0; border-bottom: 1px solid #eee;
+    }
+    .spot-item:last-child { border-bottom: none; }
+    .spot-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: bold; color: #fff; flex-shrink: 0;
+    }
+    .spot-name {
+      flex: 1; font-size: 12px; color: #333;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .spot-remove {
+      background: none; border: none; color: #bbb;
+      cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px;
+    }
+    .spot-remove:hover { color: #e74c3c; }
+
+    /* ボタン */
+    .btn-row { display: flex; gap: 6px; margin-top: 10px; }
+    .btn-primary {
+      flex: 1; padding: 7px; background: #2980b9; color: #fff;
+      border: none; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer;
+    }
+    .btn-primary:hover:not(:disabled) { background: #2471a3; }
+    .btn-primary:disabled { background: #bdc3c7; cursor: not-allowed; }
+    .btn-reset {
+      padding: 7px 10px; background: #eee; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 12px; cursor: pointer; color: #555;
+    }
+    .btn-reset:hover { background: #ddd; }
+
+    /* 結果 */
+    .result-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 0; border-bottom: 1px solid #eee;
+    }
+    .result-item:last-child { border-bottom: none; }
+    .result-num {
+      width: 22px; height: 22px; border-radius: 50%; background: #2980b9;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: bold; color: #fff; flex-shrink: 0;
+    }
+    .result-name { flex: 1; font-size: 12px; color: #333; line-height: 1.4; }
+
+    .route-stats {
+      margin-top: 10px; padding: 7px 10px; background: #eaf4fb;
+      border-radius: 6px; border-left: 3px solid #2980b9;
+    }
+    .route-stats div { font-size: 12px; color: #555; margin-bottom: 3px; }
+    .route-stats div:last-child { margin-bottom: 0; }
+    .route-stats b { color: #1a5276; font-size: 13px; }
+
+    .error-msg {
+      font-size: 12px; color: #c0392b; background: #fdecea;
+      border-radius: 6px; padding: 6px 8px; margin-top: 6px;
+    }
+
+    /* ポップアップ */
+    .popup-actions { margin-top: 8px; }
+    .popup-btn-add {
+      display: block; width: 100%; padding: 5px 0;
+      background: #2980b9; color: #fff; border: none;
+      border-radius: 10px; font-size: 11px; font-weight: bold; cursor: pointer;
+    }
+    .popup-btn-add:hover { background: #2471a3; }
+    .popup-btn-add.added { background: #27ae60; cursor: default; }
+
+    /* 感想トグルボタン */
+    .reviews-toggle-btn {
+      display: flex; justify-content: space-between; align-items: center;
+      width: 100%; margin-top: 8px; padding: 5px 8px;
+      background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 6px;
+      font-size: 11px; font-weight: bold; color: #555;
+      cursor: pointer; text-align: left; user-select: none;
+    }
+    .reviews-toggle-btn:hover { background: #eaeaea; }
+    .reviews-toggle-arrow { font-size: 10px; color: #999; }
+
+    /* レビュー */
+    .popup-review-form { margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px; }
+    .img-upload-label {
+      display: block; margin: 4px 0 2px;
+      font-size: 11px; color: #888;
+    }
+    .img-upload-input {
+      width: 100%; font-size: 11px; margin-bottom: 2px;
+      cursor: pointer;
+    }
+    .img-preview {
+      width: 100%; border-radius: 6px; margin-top: 4px;
+      max-height: 130px; object-fit: cover;
+      display: block;
+    }
+    .img-clear-btn {
+      font-size: 10px; color: #e74c3c;
+      background: none; border: none; cursor: pointer; padding: 2px 0;
+    }
+    .review-img {
+      width: 100%; border-radius: 4px; margin-top: 4px;
+      max-height: 160px; object-fit: cover; display: block;
+    }
+
+    /* 写真ギャラリー（2列グリッド） */
+    .photo-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 4px; margin-top: 6px;
+    }
+    .photo-thumb {
+      width: 100%; height: 80px; object-fit: cover;
+      border-radius: 4px; cursor: zoom-in;
+      transition: opacity 0.15s;
+    }
+    .photo-thumb:hover { opacity: 0.8; }
+
+    /* フルスクリーン拡大オーバーレイ */
+    .photo-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.88);
+      z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      cursor: zoom-out;
+    }
+    .photo-overlay img {
+      max-width: 92vw; max-height: 92vh;
+      border-radius: 6px; object-fit: contain;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+    }
+    .photo-overlay-close {
+      position: fixed; top: 16px; right: 20px;
+      color: #fff; font-size: 28px; cursor: pointer;
+      line-height: 1; background: none; border: none;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    }
+    .star-input { display: flex; gap: 3px; margin-bottom: 6px; }
+    .star-input .star {
+      font-size: 26px; color: #ddd; cursor: pointer;
+      transition: color 0.1s; line-height: 1; user-select: none;
+    }
+    .star-input .star.active { color: #f39c12; }
+    .star-input .star:hover { color: #f8c94f; }
+    .popup-review { padding: 5px 0; border-bottom: 1px solid #f0f0f0; font-size: 11px; }
+    .popup-review:last-child { border-bottom: none; }
+    .popup-review-stars { color: #f39c12; font-size: 13px; line-height: 1.2; }
+    .popup-review-comment { color: #444; margin: 2px 0; word-break: break-all; }
+    .popup-review-date { color: #bbb; font-size: 10px; }
+    .popup-avg { font-size: 12px; color: #555; margin: 4px 0; }
+
+    /* 感想一覧パネル */
+    #recent-reviews { max-height: 220px; overflow-y: auto; }
+    .review-list-item { padding: 6px 0; border-bottom: 1px solid #eee; font-size: 11px; }
+    .review-list-item:last-child { border-bottom: none; }
+    .review-list-spot {
+      font-weight: bold; color: #333; margin-bottom: 2px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .review-list-stars { color: #f39c12; font-size: 12px; }
+    .review-list-comment { color: #555; margin: 2px 0; word-break: break-all; }
+    .review-list-date { color: #bbb; font-size: 10px; }
+
+    #map { flex: 1; }
+
+    /* 高評価スポット */
+    @keyframes topRatedPulse {
+      0%   { transform: scale(0.8); opacity: 0.7; }
+      70%  { transform: scale(2.4); opacity: 0;   }
+      100% { transform: scale(2.4); opacity: 0;   }
+    }
+    .top-spot-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 2px; border-bottom: 1px solid #eee; cursor: pointer;
+    }
+    .top-spot-item:hover { background: #fffbf0; border-radius: 4px; }
+    .top-spot-item:last-child { border-bottom: none; }
+    .top-spot-rank {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: #f39c12; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: bold; flex-shrink: 0;
+    }
+    .top-spot-info { flex: 1; min-width: 0; }
+    .top-spot-name {
+      font-size: 12px; color: #333; font-weight: bold;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .top-spot-stars { font-size: 12px; color: #f39c12; }
+    .fake-data-badge {
+      display: inline-block; font-size: 9px; padding: 1px 5px;
+      background: #e67e22; color: #fff; border-radius: 3px;
+      margin-left: 6px; vertical-align: middle; font-weight: normal; letter-spacing: 0;
+    }
+
+    /* カテゴリ別評価分布 */
+    .cat-rating-item {
+      margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #eee;
+    }
+    .cat-rating-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .cat-rating-label {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: bold; margin-bottom: 5px;
+    }
+    .cat-rating-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .star-row { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+    .star-label { font-size: 10px; color: #555; width: 22px; text-align: right; flex-shrink: 0; }
+    .star-bar-track {
+      flex: 1; height: 7px; background: #f0f0f0; border-radius: 4px; overflow: hidden;
+    }
+    .star-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+    .star-count { font-size: 10px; color: #999; width: 22px; text-align: right; flex-shrink: 0; }
+
+    /* 現在地ボタン */
+    .locate-btn {
+      background: #fff; border: none; border-radius: 4px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+      cursor: pointer; width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: #555;
+      transition: background 0.15s, color 0.15s;
+    }
+    .locate-btn:hover { background: #f4f4f4; }
+    .locate-btn.locating { color: #2980b9; animation: locateSpin 1s linear infinite; }
+    .locate-btn.located  { color: #2980b9; }
+    @keyframes locateSpin { to { transform: rotate(360deg); } }
+
+    /* 現在地マーカー（中心ドット＋パルス） */
+    .locate-dot {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #2980b9; border: 3px solid #fff;
+      box-shadow: 0 0 0 2px rgba(41,128,185,0.6);
+      position: relative;
+    }
+    .locate-dot::after {
+      content: ''; position: absolute;
+      top: -6px; left: -6px;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: rgba(41,128,185,0.35);
+      animation: locatePulse 2s ease-out infinite;
+    }
+    @keyframes locatePulse {
+      0%   { transform: scale(0.8); opacity: 1; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    /* 区・市名ラベル（共通ベース） */
+    .ward-label {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      font-weight: 800;
+      color: #1a3a6b;
+      /* 白いハロで地図タイルの文字・色に埋もれないようにする */
+      text-shadow: 0 0 5px #fff, 0 0 5px #fff, 0 0 5px #fff, 0 0 5px #fff;
+      white-space: nowrap;
+      pointer-events: none !important;
+      letter-spacing: 0.05em;
+    }
+    .ward-label.ward  { font-size: 13px; }
+    .ward-label.city  { font-size: 18px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="app-title">ええやん！大阪ナビ</div>
+    <div class="header-right">大阪市観光GISアプリ</div>
+  </div>
+
+  <div class="main-layout">
+    <div class="side-panel">
+
+      <div class="side-section">
+        <div class="side-section-title">キーワード検索</div>
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="名称・住所で検索..." oninput="onSearch()">
+          <button id="search-clear" onclick="clearSearch()" title="クリア">×</button>
+        </div>
+        <div id="search-results"></div>
+      </div>
+
+      <div class="side-section">
+        <div class="side-section-title">カテゴリフィルタ</div>
+        <div class="chips" id="chips"></div>
+        <div class="star-filter-row" id="star-filter-row">
+          <div class="star-filter-label">評価で絞込（再クリックで解除）：</div>
+          <div class="star-filter-btns" id="star-filter-btns"></div>
+        </div>
+      </div>
+
+      <!-- カテゴリ別評価分布 -->
+      <div class="side-section" id="cat-rating-section" style="display:none;">
+        <div class="side-section-title">カテゴリ別評価分布</div>
+        <div id="cat-rating-list"></div>
+      </div>
+
+      <div class="side-section">
+        <div class="side-section-title">表示件数</div>
+        <div class="total-row">合計：<b id="count-total">-</b> 件</div>
+      </div>
+
+      <!-- 出発地点設定 -->
+      <div class="side-section">
+        <div class="side-section-title">出発地点</div>
+        <div id="start-point-display">
+          <div style="color:#bbb;font-size:12px;font-style:italic;">未設定（下のボタンで設定）</div>
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn-primary" id="btn-set-start" onclick="setStartPointFromLocation()" style="background:#16a085;">現在地を出発点に</button>
+          <button class="btn-reset" id="btn-set-start-map" onclick="toggleMapStartMode()">地図で設定</button>
+        </div>
+      </div>
+
+      <!-- 巡回ルート設定 -->
+      <div class="side-section">
+        <div class="side-section-title">訪問スポット</div>
+        <p class="route-hint">ピンをクリックしてスポットを追加（最大10件）<br>出発地点を設定すると自動でルートを最適化します</p>
+        <div id="spot-list">
+          <div class="spot-empty">スポットが選択されていません</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" id="btn-optimize" onclick="optimizeRoute()" disabled>ルートを計算</button>
+          <button class="btn-reset" onclick="resetAll()">リセット</button>
+        </div>
+      </div>
+
+      <!-- 最適化結果 -->
+      <div class="side-section" id="result-section" style="display:none;">
+        <div class="side-section-title">最適ルート</div>
+        <div id="route-result"></div>
+        <div id="route-stats"></div>
+      </div>
+
+      <!-- 高評価スポット -->
+      <div class="side-section" id="top-spots-section" style="display:none;">
+        <div class="side-section-title">
+          ★ 高評価スポット
+          <span class="fake-data-badge">仮データ</span>
+        </div>
+        <div id="top-spots-list"></div>
+      </div>
+
+      <!-- 感想一覧 -->
+      <div class="side-section">
+        <div class="side-section-title">みんなの感想一覧</div>
+        <div id="recent-reviews">
+          <div style="color:#bbb;font-size:11px;font-style:italic;">読み込み中...</div>
+        </div>
+      </div>
+
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ---- Firebase 初期化 ----
+    const firebaseConfig = {
+      apiKey: "AIzaSyA-qZZ7SQgqjy-05fRWFFrkfrw8E5xZ080",
+      authDomain: "eeyan-osaka-nabi.firebaseapp.com",
+      projectId: "eeyan-osaka-nabi",
+      storageBucket: "eeyan-osaka-nabi.firebasestorage.app",
+      messagingSenderId: "12747781211",
+      appId: "1:12747781211:web:1ee91b5281098923d2bb7e",
+      measurementId: "G-ZNFPSD702Q"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    try { firebase.analytics(); } catch(e) {}
+
+    // ---- 地図初期化 ----
+    const map = L.map('map').setView([34.6937, 135.5023], 12);
+    // CartoDB Voyager: バランスの取れたカラースキームで視認性が高いOSMベーススタイル
+    L.tileLayer('https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_34c0_1_56e7198ecdd9b8a19645bb9b', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank">CARTO</a>',
+      maxZoom: 19
+    }).addTo(map);
+
+    // ---- 大阪市24区ラベル ----
+    // タイル上の区名は小さくて埋もれるため、divIcon で独自ラベルを重ねる
+    const WARD_LABELS = [
+      { name: '北区',     lat: 34.7028, lng: 135.4961 },
+      { name: '中央区',   lat: 34.6803, lng: 135.5042 },
+      { name: '浪速区',   lat: 34.6573, lng: 135.5023 },
+      { name: '天王寺区', lat: 34.6549, lng: 135.5161 },
+      { name: '阿倍野区', lat: 34.6283, lng: 135.5117 },
+      { name: '住吉区',   lat: 34.6117, lng: 135.5117 },
+      { name: '東住吉区', lat: 34.6031, lng: 135.5383 },
+      { name: '平野区',   lat: 34.6094, lng: 135.5597 },
+      { name: '西成区',   lat: 34.6317, lng: 135.4883 },
+      { name: '住之江区', lat: 34.5947, lng: 135.4750 },
+      { name: '大正区',   lat: 34.6450, lng: 135.4617 },
+      { name: '港区',     lat: 34.6639, lng: 135.4660 },
+      { name: '西区',     lat: 34.6817, lng: 135.4903 },
+      { name: '此花区',   lat: 34.6817, lng: 135.4447 },
+      { name: '福島区',   lat: 34.6967, lng: 135.4751 },
+      { name: '西淀川区', lat: 34.7167, lng: 135.4483 },
+      { name: '淀川区',   lat: 34.7367, lng: 135.4950 },
+      { name: '東淀川区', lat: 34.7517, lng: 135.5283 },
+      { name: '都島区',   lat: 34.7064, lng: 135.5369 },
+      { name: '旭区',     lat: 34.7133, lng: 135.5483 },
+      { name: '城東区',   lat: 34.6917, lng: 135.5550 },
+      { name: '鶴見区',   lat: 34.6800, lng: 135.5800 },
+      { name: '東成区',   lat: 34.6717, lng: 135.5417 },
+      { name: '生野区',   lat: 34.6583, lng: 135.5483 },
+    ];
+
+    const wardLabelLayer = L.layerGroup();
+    WARD_LABELS.forEach(w => {
+      L.marker([w.lat, w.lng], {
+        icon: L.divIcon({ className: 'ward-label ward', html: w.name, iconSize: [0, 0], iconAnchor: [0, 0] }),
+        interactive: false,
+        zIndexOffset: -200
+      }).addTo(wardLabelLayer);
+    });
+
+    // ズーム9〜11: 「大阪市」1つだけ表示（24区を全部出すと重なるため）
+    const cityLabelLayer = L.layerGroup();
+    L.marker([34.6937, 135.5023], {
+      icon: L.divIcon({ className: 'ward-label city', html: '大阪市', iconSize: [0, 0], iconAnchor: [0, 0] }),
+      interactive: false,
+      zIndexOffset: -200
+    }).addTo(cityLabelLayer);
+
+    // ズーム別に市ラベル・区ラベルを切り替える（ローマ字タイルを日本語で上書き）
+    function updateWardLabelVisibility() {
+      const z = map.getZoom();
+      if (z >= 12) {
+        if (!map.hasLayer(wardLabelLayer)) wardLabelLayer.addTo(map);
+        if (map.hasLayer(cityLabelLayer)) map.removeLayer(cityLabelLayer);
+      } else if (z >= 9) {
+        if (map.hasLayer(wardLabelLayer)) map.removeLayer(wardLabelLayer);
+        if (!map.hasLayer(cityLabelLayer)) cityLabelLayer.addTo(map);
+      } else {
+        if (map.hasLayer(wardLabelLayer)) map.removeLayer(wardLabelLayer);
+        if (map.hasLayer(cityLabelLayer)) map.removeLayer(cityLabelLayer);
+      }
+    }
+    map.on('zoomend', updateWardLabelVisibility);
+    updateWardLabelVisibility();
+
+    // ---- 現在地 ----
+    let locateMarker = null;
+    let locateAccCircle = null;
+
+    // 地図右上に現在地ボタンをLeafletカスタムコントロールとして追加
+    const LocateControl = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd() {
+        const btn = L.DomUtil.create('button', 'locate-btn leaflet-bar');
+        btn.title = '現在地を表示';
+        btn.innerHTML = '⊕';
+        btn.setAttribute('type', 'button');
+        // クリックがLeafletのズーム操作に伝播しないよう停止
+        L.DomEvent.disableClickPropagation(btn);
+        L.DomEvent.on(btn, 'click', () => locateUser(btn));
+        return btn;
+      }
+    });
+    new LocateControl().addTo(map);
+
+    function locateUser(btn) {
+      if (!navigator.geolocation) {
+        alert('このブラウザは位置情報をサポートしていません');
+        return;
+      }
+
+      btn.innerHTML = '↻';
+      btn.classList.add('locating');
+      btn.classList.remove('located');
+      btn.disabled = true;
+
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const { latitude: lat, longitude: lng, accuracy: acc } = pos.coords;
+
+          // 既存の現在地レイヤーを削除
+          if (locateMarker)    map.removeLayer(locateMarker);
+          if (locateAccCircle) map.removeLayer(locateAccCircle);
+
+          // 精度を示す薄青の円
+          locateAccCircle = L.circle([lat, lng], {
+            radius: acc, color: '#2980b9', weight: 1,
+            fillColor: '#2980b9', fillOpacity: 0.08
+          }).addTo(map);
+
+          // パルスするドットアイコン
+          locateMarker = L.marker([lat, lng], {
+            icon: L.divIcon({
+              className: '',
+              html: '<div class="locate-dot"></div>',
+              iconSize: [16, 16], iconAnchor: [8, 8]
+            }),
+            zIndexOffset: 2000,
+            interactive: false
+          }).addTo(map);
+
+          map.setView([lat, lng], 15);
+
+          btn.innerHTML = '⊕';
+          btn.classList.remove('locating');
+          btn.classList.add('located');
+          btn.disabled = false;
+        },
+        err => {
+          const msgs = {
+            1: '位置情報の使用が許可されていません',
+            2: '位置情報を取得できませんでした',
+            3: '位置情報の取得がタイムアウトしました'
+          };
+          alert(msgs[err.code] || '位置情報の取得に失敗しました');
+          btn.innerHTML = '⊕';
+          btn.classList.remove('locating');
+          btn.disabled = false;
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      );
+    }
+
+    // ---- 出発地点 ----
+    let startPoint = null; // { lat, lng, name }
+    let startMarker = null;
+    let mapStartMode = false;
+
+    function makeStartIcon() {
+      return L.divIcon({
+        html: `<div style="background:#16a085;color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:18px;border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.5);">S</div>`,
+        iconSize: [34, 34], iconAnchor: [17, 17], className: ''
+      });
+    }
+
+    function setStartPointFromLocation() {
+      if (!navigator.geolocation) { alert('このブラウザは位置情報をサポートしていません'); return; }
+      const btn = document.getElementById('btn-set-start');
+      btn.textContent = '取得中...';
+      btn.disabled = true;
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const { latitude: lat, longitude: lng } = pos.coords;
+          setStartPoint(lat, lng, '現在地');
+          btn.textContent = '現在地を出発点に';
+          btn.disabled = false;
+          map.setView([lat, lng], 15);
+        },
+        err => {
+          const msgs = { 1: '位置情報の使用が許可されていません', 2: '取得できませんでした', 3: 'タイムアウトしました' };
+          alert('位置情報の取得に失敗しました: ' + (msgs[err.code] || ''));
+          btn.textContent = '現在地を出発点に';
+          btn.disabled = false;
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      );
+    }
+
+    function toggleMapStartMode() {
+      mapStartMode = !mapStartMode;
+      const btn = document.getElementById('btn-set-start-map');
+      if (mapStartMode) {
+        btn.textContent = 'クリックで設定中...';
+        btn.style.background = '#e67e22';
+        btn.style.color = '#fff';
+        btn.style.border = 'none';
+        map.getContainer().style.cursor = 'crosshair';
+      } else {
+        btn.textContent = '地図で設定';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.border = '';
+        map.getContainer().style.cursor = '';
+      }
+    }
+
+    map.on('click', function(e) {
+      if (!mapStartMode) return;
+      const { lat, lng } = e.latlng;
+      setStartPoint(lat, lng, `地点 (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+      toggleMapStartMode();
+    });
+
+    function setStartPoint(lat, lng, name) {
+      startPoint = { lat, lng, name };
+      if (startMarker) map.removeLayer(startMarker);
+      startMarker = L.marker([lat, lng], { icon: makeStartIcon(), zIndexOffset: 1500 }).addTo(map);
+      renderStartPointUI();
+      updateOptimizeButton();
+      if (selectedSpots.length >= 1) optimizeRoute();
+    }
+
+    function clearStartPoint() {
+      startPoint = null;
+      if (startMarker) { map.removeLayer(startMarker); startMarker = null; }
+      renderStartPointUI();
+      updateOptimizeButton();
+      clearResult();
+    }
+
+    function renderStartPointUI() {
+      const el = document.getElementById('start-point-display');
+      if (!el) return;
+      if (startPoint) {
+        el.innerHTML = `
+          <div style="display:flex;align-items:center;gap:6px;padding:4px 0;">
+            <div style="background:#16a085;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;flex-shrink:0;">S</div>
+            <div style="flex:1;font-size:12px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${startPoint.name}">${startPoint.name}</div>
+            <button onclick="clearStartPoint()" style="background:none;border:none;color:#bbb;cursor:pointer;font-size:16px;line-height:1;padding:0 2px;" title="出発地点をクリア">×</button>
+          </div>`;
+      } else {
+        el.innerHTML = '<div style="color:#bbb;font-size:12px;font-style:italic;">未設定（下のボタンで設定）</div>';
+      }
+    }
+
+    function updateOptimizeButton() {
+      const btn = document.getElementById('btn-optimize');
+      if (!btn) return;
+      const canOptimize = startPoint ? selectedSpots.length >= 1 : selectedSpots.length >= 2;
+      btn.disabled = !canOptimize;
+    }
+
+    // ---- 巡回ルート状態 ----
+    const MAX_SPOTS = 10;
+    const selectedSpots = []; // { lat, lng, name }
+    let overlayMarkers = [];
+    let routeLayer = null;
+
+    // スポット番号ごとの色
+    const SPOT_COLORS = [
+      '#e74c3c','#e67e22','#f39c12','#27ae60','#1abc9c',
+      '#2980b9','#8e44ad','#d35400','#16a085','#c0392b'
+    ];
+
+    function makeSpotIcon(num) {
+      const color = SPOT_COLORS[(num - 1) % SPOT_COLORS.length];
+      return L.divIcon({
+        html: `<div style="background:${color};color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.45);">${num}</div>`,
+        iconSize:   [30, 30],
+        iconAnchor: [15, 15],
+        className:  ''
+      });
+    }
+
+    function addSpot(lat, lng, name) {
+      if (selectedSpots.length >= MAX_SPOTS) {
+        alert(`最大${MAX_SPOTS}件まで追加できます`);
+        return;
+      }
+      if (selectedSpots.some(s => s.lat === lat && s.lng === lng)) {
+        alert('このスポットはすでに追加されています');
+        return;
+      }
+      selectedSpots.push({ lat, lng, name });
+      map.closePopup();
+      renderSpotList();
+      renderOverlays();
+      updateOptimizeButton();
+      if (startPoint) {
+        optimizeRoute();
+      } else {
+        clearResult();
+      }
+    }
+
+    function removeSpot(i) {
+      selectedSpots.splice(i, 1);
+      renderSpotList();
+      renderOverlays();
+      updateOptimizeButton();
+      if (startPoint && selectedSpots.length >= 1) {
+        optimizeRoute();
+      } else {
+        clearResult();
+      }
+    }
+
+    function renderSpotList() {
+      const el = document.getElementById('spot-list');
+      if (selectedSpots.length === 0) {
+        el.innerHTML = '<div class="spot-empty">スポットが選択されていません</div>';
+        return;
+      }
+      el.innerHTML = selectedSpots.map((s, i) => `
+        <div class="spot-item">
+          <div class="spot-num" style="background:${SPOT_COLORS[i % SPOT_COLORS.length]}">${i + 1}</div>
+          <div class="spot-name" title="${s.name}">${s.name}</div>
+          <button class="spot-remove" onclick="removeSpot(${i})" title="削除">×</button>
+        </div>
+      `).join('');
+    }
+
+    function renderOverlays() {
+      overlayMarkers.forEach(m => map.removeLayer(m));
+      overlayMarkers = [];
+      selectedSpots.forEach((s, i) => {
+        const m = L.marker([s.lat, s.lng], {
+          icon: makeSpotIcon(i + 1),
+          zIndexOffset: 500
+        }).addTo(map);
+        overlayMarkers.push(m);
+      });
+    }
+
+    // ---- OSRM Trip API で最適化 ----
+    async function optimizeRoute() {
+      // 出発地点あり: スポット1件以上, なし: 2件以上
+      const allPoints = startPoint ? [startPoint, ...selectedSpots] : selectedSpots;
+      if (allPoints.length < 2) return;
+
+      const btn = document.getElementById('btn-optimize');
+      btn.textContent = '計算中...';
+      btn.disabled = true;
+
+      try {
+        const coords = allPoints.map(s => `${s.lng},${s.lat}`).join(';');
+        const url = `https://router.project-osrm.org/trip/v1/driving/${coords}`
+          + `?roundtrip=false&source=first&destination=any&steps=false&geometries=geojson&overview=full`;
+
+        const res = await fetch(url);
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          const detail = (data && (data.message || data.code)) || `HTTP ${res.status}`;
+          throw new Error(`APIエラー (${res.status}): ${detail}`);
+        }
+        if (data.code !== 'Ok') {
+          throw new Error(`OSRMエラー [${data.code}]: ${data.message || '詳細不明'}`);
+        }
+
+        // 最適順を復元：waypoints[originalIndex].waypoint_index = trip内の順番
+        const ordered = new Array(allPoints.length);
+        data.waypoints.forEach((wp, origIdx) => {
+          ordered[wp.waypoint_index] = allPoints[origIdx];
+        });
+
+        // ルート描画
+        if (routeLayer) map.removeLayer(routeLayer);
+        routeLayer = L.geoJSON(data.trips[0].geometry, {
+          style: { color: '#2980b9', weight: 8, opacity: 0.85 }
+        }).addTo(map);
+
+        // 最適順でオーバーレイ番号を振り直す（出発地点はSマーカーのまま）
+        overlayMarkers.forEach(m => map.removeLayer(m));
+        overlayMarkers = [];
+        let spotNum = 0;
+        ordered.forEach(s => {
+          const isStart = startPoint && s.lat === startPoint.lat && s.lng === startPoint.lng;
+          if (isStart) return;
+          spotNum++;
+          const m = L.marker([s.lat, s.lng], {
+            icon: makeSpotIcon(spotNum),
+            zIndexOffset: 500
+          }).addTo(map);
+          overlayMarkers.push(m);
+        });
+
+        // 結果表示
+        const trip = data.trips[0];
+        showResult(ordered, trip.distance, trip.duration);
+
+        map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+
+      } catch (err) {
+        document.getElementById('result-section').style.display = '';
+        document.getElementById('route-result').innerHTML =
+          `<div class="error-msg">エラー: ${err.message}<br>ネットワーク接続を確認してください。</div>`;
+        document.getElementById('route-stats').innerHTML = '';
+      } finally {
+        btn.textContent = 'ルートを計算';
+        updateOptimizeButton();
+      }
+    }
+
+    function showResult(ordered, distM, durS) {
+      const section = document.getElementById('result-section');
+      section.style.display = '';
+
+      let spotNum = 0;
+      document.getElementById('route-result').innerHTML = ordered.map(s => {
+        const isStart = startPoint && s.lat === startPoint.lat && s.lng === startPoint.lng;
+        const bgColor = isStart ? '#16a085' : SPOT_COLORS[spotNum % SPOT_COLORS.length];
+        const label = isStart ? 'S' : ++spotNum;
+        const extra = isStart ? '<span style="font-size:10px;color:#aaa;margin-left:4px;">（出発地点）</span>' : '';
+        return `
+          <div class="result-item">
+            <div class="result-num" style="background:${bgColor}">${label}</div>
+            <div class="result-name">${escapeHtml(s.name)}${extra}</div>
+          </div>`;
+      }).join('');
+
+      const distKm  = (distM / 1000).toFixed(1);
+      const walkMin = Math.round(distM / 1000 / 4 * 60);
+      const driveMin = Math.round(durS / 60);
+
+      document.getElementById('route-stats').innerHTML = `
+        <div class="route-stats">
+          <div>総距離：<b>${distKm} km</b></div>
+          <div>徒歩目安：<b>約 ${walkMin} 分</b></div>
+          <div>車移動目安：<b>約 ${driveMin} 分</b></div>
+        </div>
+      `;
+    }
+
+    function clearResult() {
+      if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+      document.getElementById('result-section').style.display = 'none';
+    }
+
+    function resetAll() {
+      selectedSpots.length = 0;
+      overlayMarkers.forEach(m => map.removeLayer(m));
+      overlayMarkers = [];
+      clearResult();
+      renderSpotList();
+      clearStartPoint();
+    }
+
+    // ---- カテゴリ定義 ----
+    const CATEGORIES = [
+      { key: 'kazaryka',  label: '飾瓦',    pattern: /飾瓦/,     color: '#922b21', markerColor: 'red'    },
+      { key: 'toshokan',  label: '図書館',   pattern: /図書館/,   color: '#1f618d', markerColor: 'blue'   },
+      { key: 'hakubutsu', label: '博物館',   pattern: /博物館/,   color: '#154360', markerColor: 'blue'   },
+      { key: 'bijutsu',   label: '美術館',   pattern: /美術館/,   color: '#6c3483', markerColor: 'violet' },
+      { key: 'gijutsu',   label: '技術館',   pattern: /技術館/,   color: '#1e8449', markerColor: 'green'  },
+      { key: 'jutaku',    label: '住宅',     pattern: /住宅/,     color: '#d68910', markerColor: 'orange' },
+      { key: 'onsen',     label: '温泉',     pattern: /温泉/,     color: '#e74c3c', markerColor: 'red'    },
+      { key: 'center',    label: 'センター',  pattern: /センター/, color: '#ca6f1e', markerColor: 'orange' },
+      { key: 'jinja',     label: '神社',     pattern: /神社/,     color: '#b7950b', markerColor: 'gold'   },
+      { key: 'shiryo',    label: '史料',     pattern: /史料/,     color: '#7d3c98', markerColor: 'violet' },
+      { key: 'shiryo2',   label: '資料',     pattern: /資料/,     color: '#8e44ad', markerColor: 'violet' },
+      { key: 'bunsho',    label: '文書',     pattern: /文書/,     color: '#4a235a', markerColor: 'violet' },
+      { key: 'koen',      label: '公園',     pattern: /公園/,     color: '#27ae60', markerColor: 'green'  },
+      { key: 'tera',      label: '寺',       pattern: /寺/,       color: '#616a6b', markerColor: 'grey'   },
+      { key: 'ko',        label: '校',       pattern: /校/,       color: '#28b463', markerColor: 'green'  },
+      { key: 'hashi',     label: '橋',       pattern: /橋/,       color: '#839192', markerColor: 'grey'   },
+      { key: 'saka',      label: '坂',       pattern: /坂/,       color: '#aab7b8', markerColor: 'grey'   },
+      { key: 'ba',        label: '場',       pattern: /場/,       color: '#2c3e50', markerColor: 'black'  },
+      { key: 'kai',       label: '会',       pattern: /会/,       color: '#d35400', markerColor: 'orange' },
+      { key: 'machi',     label: '町',       pattern: /町/,       color: '#b7770d', markerColor: 'gold'   },
+      { key: 'other',     label: 'その他',   pattern: null,       color: '#555555', markerColor: 'black'  },
+    ];
+
+    function getCategory(name) {
+      for (const cat of CATEGORIES) {
+        if (cat.pattern && cat.pattern.test(name)) return cat;
+      }
+      return CATEGORIES[CATEGORIES.length - 1];
+    }
+
+    function makeIcon(markerColor) {
+      return L.icon({
+        iconUrl:     `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${markerColor}.png`,
+        shadowUrl:   'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize:    [25, 41],
+        iconAnchor:  [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize:  [41, 41]
+      });
+    }
+
+    const allData = []; // 全マーカーデータ（検索用）
+    const spotAvgRounded = {}; // spotKey → 四捨五入した平均星数 (1-5)
+    let selectedStarFilter = null; // null=全表示, 1-5=該当星のみ表示
+
+    const layers = {};
+    const counts = {};
+    CATEGORIES.forEach(cat => {
+      layers[cat.key] = L.layerGroup().addTo(map);
+      counts[cat.key] = 0;
+    });
+
+    // ---- レビュー機能（Firestore） ----
+    const pendingRatings = {};
+
+    // Firestore ドキュメントIDに使えない文字（. と -）を置換した複合キー
+    function spotKey(lat, lng) {
+      return `${lat}_${lng}`.replace(/\./g, 'd').replace(/-/g, 'n');
+    }
+
+    function starsHtml(n, total = 5) {
+      let h = '';
+      for (let i = 1; i <= total; i++) h += `<span style="color:${i <= n ? '#f39c12' : '#ddd'}">★</span>`;
+      return h;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function selectStar(lat, lng, val) {
+      const k = spotKey(lat, lng);
+      pendingRatings[k] = val;
+      const container = document.getElementById('star-input-' + k);
+      if (!container) return;
+      container.querySelectorAll('.star').forEach((s, i) => {
+        s.classList.toggle('active', i < val);
+      });
+    }
+
+    // ファイル選択時にサムネイルプレビューを表示する
+    function previewImage(k) {
+      const input   = document.getElementById('review-img-' + k);
+      const preview = document.getElementById('review-img-preview-' + k);
+      if (!preview) return;
+      const file = input.files[0];
+      if (!file) { preview.innerHTML = ''; return; }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('画像は5MB以下にしてください');
+        input.value = '';
+        preview.innerHTML = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = e => {
+        preview.innerHTML = `
+          <img class="img-preview" src="${e.target.result}" alt="プレビュー">
+          <button class="img-clear-btn" onclick="clearImage('${k}')">✕ 削除</button>`;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearImage(k) {
+      const input = document.getElementById('review-img-' + k);
+      if (input) input.value = '';
+      const preview = document.getElementById('review-img-preview-' + k);
+      if (preview) preview.innerHTML = '';
+    }
+
+    // 画像をCanvasでリサイズ・圧縮してBase64文字列に変換する
+    // Firebase Storage（CORS設定が必要・有料プランで本格利用）の代わりに
+    // Firestoreに直接保存することでCORSエラーを回避する
+    function compressImage(file, maxPx = 640, quality = 0.65) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = e => {
+          const img = new Image();
+          img.onerror = reject;
+          img.onload = () => {
+            const ratio = Math.min(maxPx / img.width, maxPx / img.height, 1);
+            const canvas = document.createElement('canvas');
+            canvas.width  = Math.round(img.width  * ratio);
+            canvas.height = Math.round(img.height * ratio);
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            const base64 = canvas.toDataURL('image/jpeg', quality);
+            // Firestoreの1ドキュメント上限は1MBのため超過を拒否する
+            if (base64.length > 900_000) {
+              reject(new Error('圧縮後も画像が大きすぎます。より小さい画像を選択してください。'));
+            } else {
+              resolve(base64);
+            }
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function uploadImage(k) {
+      const input = document.getElementById('review-img-' + k);
+      if (!input || !input.files[0]) return null;
+      return await compressImage(input.files[0]);
+    }
+
+    async function submitReview(lat, lng) {
+      const k = spotKey(lat, lng);
+      const stars = pendingRatings[k] || 0;
+      if (stars === 0) { alert('星の評価を選んでください'); return; }
+      const textEl = document.getElementById('review-text-' + k);
+      const comment = textEl ? textEl.value.trim() : '';
+      const btn = document.getElementById('submit-btn-' + k);
+      if (btn) { btn.disabled = true; btn.textContent = '投稿中...'; }
+      try {
+        // 画像アップロードを試みる。失敗した場合は画像なしで投稿するか確認する
+        let imageUrl = null;
+        const hasImage = document.getElementById('review-img-' + k)?.files[0];
+        if (hasImage) {
+          if (btn) btn.textContent = '画像アップロード中...';
+          try {
+            imageUrl = await uploadImage(k);
+          } catch(imgErr) {
+            const retry = confirm(`画像のアップロードに失敗しました。\n\n理由: ${imgErr.message}\n\n画像なしで感想だけ投稿しますか？`);
+            if (!retry) {
+              if (btn) { btn.disabled = false; btn.textContent = '投稿する'; }
+              return;
+            }
+          }
+          if (btn) btn.textContent = '投稿中...';
+        }
+
+        await db.collection('reviews').add({
+          spotKey: `${lat},${lng}`,
+          lat, lng,
+          stars,
+          comment,
+          imageUrl: imageUrl || null,
+          date: new Date().toLocaleDateString('ja-JP'),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        delete pendingRatings[k];
+        map.closePopup();
+        await loadRecentReviews();
+        alert('投稿しました！ありがとうございます');
+      } catch(e) {
+        alert('投稿に失敗しました: ' + e.message);
+        if (btn) { btn.disabled = false; btn.textContent = '投稿する'; }
+      }
+    }
+
+    async function loadSpotReviews(lat, lng) {
+      const k = spotKey(lat, lng);
+      const listEl = document.getElementById('reviews-list-' + k);
+      const avgEl  = document.getElementById('avg-' + k);
+      if (!listEl) return;
+      try {
+        const snapshot = await db.collection('reviews')
+          .where('spotKey', '==', `${lat},${lng}`)
+          .get();
+        const reviews = snapshot.docs.map(d => d.data())
+          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+        if (avgEl) {
+          if (reviews.length > 0) {
+            const avg = reviews.reduce((s, r) => s + r.stars, 0) / reviews.length;
+            avgEl.innerHTML = `<div class="popup-avg">${starsHtml(Math.round(avg))}&nbsp;<b>${avg.toFixed(1)}</b>&thinsp;<span style="color:#aaa">(${reviews.length}件)</span></div>`;
+          } else {
+            avgEl.innerHTML = '';
+          }
+        }
+
+        // トグルボタンのラベルを件数で更新
+        const toggleLabel = document.getElementById('reviews-toggle-label-' + k);
+        if (toggleLabel) {
+          toggleLabel.textContent = reviews.length === 0
+            ? 'みんなの感想（まだありません）'
+            : `みんなの感想（${reviews.length}件）`;
+        }
+
+        listEl.innerHTML = reviews.length === 0
+          ? '<div style="color:#aaa;font-size:11px;padding:4px 0;">まだ感想がありません</div>'
+          : reviews.slice(0, 5).map(r => `
+              <div class="popup-review">
+                <div class="popup-review-stars">${starsHtml(r.stars)}</div>
+                ${r.comment ? `<div class="popup-review-comment">${escapeHtml(r.comment)}</div>` : ''}
+                <div class="popup-review-date">${r.date}</div>
+              </div>
+            `).join('');
+
+        // 写真ギャラリーを更新
+        const photos = reviews.filter(r => r.imageUrl);
+        const photosLabel = document.getElementById('photos-toggle-label-' + k);
+        const photosList  = document.getElementById('photos-list-' + k);
+        if (photosLabel) {
+          photosLabel.textContent = photos.length === 0
+            ? '写真（まだありません）'
+            : `写真（${photos.length}枚）`;
+        }
+        if (photosList) {
+          photosList.innerHTML = photos.length === 0
+            ? '<div style="color:#aaa;font-size:11px;padding:4px 0;">まだ写真がありません</div>'
+            : `<div class="photo-grid">${photos.map(r =>
+                `<img class="photo-thumb" src="${r.imageUrl}" alt="投稿写真" loading="lazy"
+                  onclick="openPhoto('${r.imageUrl}')">`
+              ).join('')}</div>`;
+        }
+      } catch(e) {
+        const toggleLabel = document.getElementById('reviews-toggle-label-' + k);
+        if (toggleLabel) toggleLabel.textContent = 'みんなの感想（読み込み失敗）';
+        if (listEl) listEl.innerHTML = '<div style="color:#aaa;font-size:11px;">読み込みに失敗しました</div>';
+      }
+    }
+
+    async function loadRecentReviews() {
+      const container = document.getElementById('recent-reviews');
+      if (!container) return;
+      try {
+        const snapshot = await db.collection('reviews')
+          .orderBy('createdAt', 'desc')
+          .limit(20)
+          .get();
+        if (snapshot.empty) {
+          container.innerHTML = '<div style="color:#bbb;font-size:11px;font-style:italic;">まだ投稿がありません</div>';
+          return;
+        }
+        container.innerHTML = snapshot.docs.map(d => {
+          const r = d.data();
+          const spot = allData.find(s => `${s.lat},${s.lng}` === r.spotKey);
+          const name = spot ? spot.name : '不明なスポット';
+          return `<div class="review-list-item">
+            <div class="review-list-spot">${escapeHtml(name)}</div>
+            <div class="review-list-stars">${starsHtml(r.stars)}</div>
+            ${r.comment ? `<div class="review-list-comment">${escapeHtml(r.comment)}</div>` : ''}
+            ${r.imageUrl ? `<img class="review-img" src="${r.imageUrl}" alt="投稿写真" loading="lazy">` : ''}
+            <div class="review-list-date">${r.date}</div>
+          </div>`;
+        }).join('');
+      } catch(e) {
+        container.innerHTML = '<div style="color:#c0392b;font-size:11px;">読み込みに失敗しました</div>';
+      }
+    }
+
+    function toggleReviews(k) {
+      const list  = document.getElementById('reviews-list-' + k);
+      const arrow = document.getElementById('reviews-toggle-arrow-' + k);
+      if (!list) return;
+      const isOpen = list.style.display !== 'none';
+      list.style.display = isOpen ? 'none' : '';
+      if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+    }
+
+    function togglePhotos(k) {
+      const list  = document.getElementById('photos-list-' + k);
+      const arrow = document.getElementById('photos-toggle-arrow-' + k);
+      if (!list) return;
+      const isOpen = list.style.display !== 'none';
+      list.style.display = isOpen ? 'none' : '';
+      if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+    }
+
+    // サムネイルクリックでフルスクリーン表示（ESCキーまたはクリックで閉じる）
+    function openPhoto(url) {
+      const overlay = document.createElement('div');
+      overlay.className = 'photo-overlay';
+      overlay.innerHTML = `
+        <button class="photo-overlay-close" onclick="event.stopPropagation();this.parentElement.remove()">✕</button>
+        <img src="${url}" alt="写真">`;
+      overlay.addEventListener('click', () => overlay.remove());
+      const handler = e => { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', handler); } };
+      document.addEventListener('keydown', handler);
+      document.body.appendChild(overlay);
+    }
+
+    function makePopupHtml(name, address, cat, label, lat, lng) {
+      const safe = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const k = spotKey(lat, lng);
+      return `
+        <b>${name}</b><br>
+        <span style="color:#666;font-size:12px;">${address}</span><br>
+        <span style="color:${cat.color};font-size:11px;">${cat.label}（${label}）</span>
+        <div id="avg-${k}"></div>
+        <div class="popup-actions">
+          <button class="popup-btn-add" onclick="addSpot(${lat},${lng},'${safe}')">+ ルートに追加</button>
+        </div>
+        <div class="popup-review-form">
+          <div style="font-size:11px;font-weight:bold;margin-bottom:4px;">感想を投稿</div>
+          <div class="star-input" id="star-input-${k}">
+            ${[1,2,3,4,5].map(i => `<span class="star" onclick="selectStar(${lat},${lng},${i})">★</span>`).join('')}
+          </div>
+          <textarea id="review-text-${k}" placeholder="感想を入力（任意）..."
+            style="width:100%;font-size:11px;margin:4px 0;border:1px solid #ccc;border-radius:4px;padding:4px;resize:vertical;min-height:52px;box-sizing:border-box;"></textarea>
+          <label class="img-upload-label">写真を追加（任意・5MB以下）</label>
+          <input type="file" class="img-upload-input" id="review-img-${k}"
+            accept="image/*" onchange="previewImage('${k}')">
+          <div id="review-img-preview-${k}"></div>
+          <button id="submit-btn-${k}" onclick="submitReview(${lat},${lng})"
+            style="width:100%;padding:5px;margin-top:6px;background:#e67e22;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer;">
+            投稿する
+          </button>
+        </div>
+        <button class="reviews-toggle-btn" onclick="togglePhotos('${k}')" id="photos-toggle-btn-${k}">
+          <span id="photos-toggle-label-${k}">写真　読み込み中...</span>
+          <span class="reviews-toggle-arrow" id="photos-toggle-arrow-${k}">▶</span>
+        </button>
+        <div id="photos-list-${k}" style="display:none;"></div>
+        <button class="reviews-toggle-btn" onclick="toggleReviews('${k}')" id="reviews-toggle-btn-${k}">
+          <span id="reviews-toggle-label-${k}">みんなの感想　読み込み中...</span>
+          <span class="reviews-toggle-arrow" id="reviews-toggle-arrow-${k}">▶</span>
+        </button>
+        <div id="reviews-list-${k}" style="display:none;"></div>
+      `;
+    }
+
+    function addMarker(name, address, label) {
+      return function(lat, lng) {
+        const cat = getCategory(name);
+        const marker = L.marker([lat, lng], { icon: makeIcon(cat.markerColor) })
+          .bindPopup(makePopupHtml(name, address, cat, label, lat, lng))
+          .addTo(layers[cat.key]);
+        marker.on('popupopen', () => loadSpotReviews(lat, lng));
+        counts[cat.key]++;
+        allData.push({ name, address, label, lat, lng, marker, catKey: cat.key });
+      };
+    }
+
+    let loadedCount = 0;
+    // 3つのCSV（kankou/bunkazai/park）が全て完了してから初期化処理を1回だけ実行する
+    async function onAllLoaded() {
+      loadedCount++;
+      if (loadedCount < 3) return;
+      buildChips();
+      updateTotal();
+      loadRecentReviews();
+      await seedFakeData();
+      await loadAndHighlight();
+    }
+
+    function buildChips() {
+      const container = document.getElementById('chips');
+      CATEGORIES.forEach(cat => {
+        if (counts[cat.key] === 0) return;
+        const chip = document.createElement('div');
+        chip.className = 'chip active';
+        chip.style.background = cat.color;
+        chip.dataset.key = cat.key;
+        chip.innerHTML = `
+          <div class="chip-dot" style="background:#fff;opacity:0.7;"></div>
+          ${cat.label}
+          <span class="chip-count">${counts[cat.key]}</span>
+        `;
+        chip.addEventListener('click', () => toggleCategory(cat.key, chip, cat.color));
+        container.appendChild(chip);
+      });
+    }
+
+    // 星フィルタUIを構築し spotAvgRounded を更新する
+    function renderStarFilter(ratingMap) {
+      // spotAvgRounded に書き込む
+      Object.entries(ratingMap).forEach(([key, r]) => {
+        if (r.count > 0) spotAvgRounded[key] = Math.round(r.sum / r.count);
+      });
+
+      // 各星数のスポット件数を集計
+      const starCounts = { 1:0, 2:0, 3:0, 4:0, 5:0 };
+      Object.values(spotAvgRounded).forEach(s => { if (starCounts[s] !== undefined) starCounts[s]++; });
+
+      const row  = document.getElementById('star-filter-row');
+      const btns = document.getElementById('star-filter-btns');
+      row.style.display = '';
+      btns.innerHTML = [1,2,3,4,5].map(s => `
+        <button class="star-filter-btn" data-star="${s}" onclick="applyStarFilter(${s})">
+          ${'★'.repeat(s)}<span style="opacity:0.65;font-size:9px;margin-left:2px;">${starCounts[s]}</span>
+        </button>
+      `).join('');
+    }
+
+    // 星フィルタを適用する（同じ値で再クリックすると解除）
+    function applyStarFilter(star) {
+      selectedStarFilter = (selectedStarFilter === star) ? null : star;
+
+      document.querySelectorAll('.star-filter-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.star) === selectedStarFilter);
+      });
+
+      // 各スポットの表示を個別制御
+      allData.forEach(spot => {
+        const k       = `${spot.lat},${spot.lng}`;
+        const rounded = spotAvgRounded[k]; // レビューなしは undefined
+        const starOk  = selectedStarFilter === null || rounded === selectedStarFilter;
+
+        if (starOk) {
+          if (!layers[spot.catKey].hasLayer(spot.marker)) {
+            spot.marker.addTo(layers[spot.catKey]);
+          }
+        } else {
+          if (layers[spot.catKey].hasLayer(spot.marker)) {
+            layers[spot.catKey].removeLayer(spot.marker);
+          }
+        }
+      });
+
+      updateTotal();
+    }
+
+    function toggleCategory(key, chip, color) {
+      if (chip.classList.contains('active')) {
+        map.removeLayer(layers[key]);
+        chip.classList.replace('active', 'inactive');
+        chip.style.background = '#ccc';
+      } else {
+        layers[key].addTo(map);
+        chip.classList.replace('inactive', 'active');
+        chip.style.background = color;
+        // 星フィルタが有効なら、再表示したカテゴリにも適用する
+        if (selectedStarFilter !== null) {
+          allData.filter(s => s.catKey === key).forEach(spot => {
+            const k = `${spot.lat},${spot.lng}`;
+            if (spotAvgRounded[k] !== selectedStarFilter) {
+              layers[key].removeLayer(spot.marker);
+            }
+          });
+        }
+      }
+      updateTotal();
+    }
+
+    function updateTotal() {
+      let total = 0;
+      document.querySelectorAll('.chip.active').forEach(chip => {
+        const key = chip.dataset.key;
+        if (selectedStarFilter === null) {
+          total += counts[key] || 0;
+        } else {
+          allData.forEach(s => {
+            if (s.catKey !== key) return;
+            if (spotAvgRounded[`${s.lat},${s.lng}`] === selectedStarFilter) total++;
+          });
+        }
+      });
+      document.getElementById('count-total').textContent = total;
+    }
+
+    // ---- キーワード検索 ----
+    const searchLayer = L.layerGroup();
+    let isSearchActive = false;
+
+    function onSearch() {
+      const q = document.getElementById('search-input').value.trim();
+      const container = document.getElementById('search-results');
+
+      if (!q) {
+        container.innerHTML = '';
+        exitSearchMode();
+        return;
+      }
+
+      const lower = q.toLowerCase();
+      const matched = [];
+      allData.forEach((d, i) => {
+        if (d.name.toLowerCase().includes(lower) || d.address.toLowerCase().includes(lower)) {
+          matched.push({ ...d, origIdx: i });
+        }
+      });
+
+      // カテゴリレイヤーを非表示にしてsearchLayerだけ表示
+      if (!isSearchActive) {
+        CATEGORIES.forEach(cat => map.removeLayer(layers[cat.key]));
+        searchLayer.addTo(map);
+        isSearchActive = true;
+      }
+      searchLayer.clearLayers();
+      matched.forEach(d => d.marker.addTo(searchLayer));
+
+      if (matched.length === 0) {
+        container.innerHTML = '<div class="search-count">0件の結果</div>';
+        return;
+      }
+
+      const hl = (text) => {
+        const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return text.replace(new RegExp(`(${esc})`, 'gi'),
+          '<mark style="background:#fff176;border-radius:2px;">$1</mark>');
+      };
+
+      container.innerHTML = `<div class="search-count">${matched.length}件の結果</div>` +
+        matched.slice(0, 100).map(d => `
+          <div class="search-result-item" onclick="jumpToResult(${d.origIdx})">
+            <div class="search-result-name">${hl(d.name)}</div>
+            <div class="search-result-addr">${hl(d.address)}</div>
+            <div class="search-result-label">${d.label}</div>
+          </div>
+        `).join('');
+    }
+
+    function exitSearchMode() {
+      if (!isSearchActive) return;
+      map.removeLayer(searchLayer);
+      searchLayer.clearLayers();
+      isSearchActive = false;
+      // チップがアクティブなカテゴリレイヤーだけ復元
+      document.querySelectorAll('.chip.active').forEach(chip => {
+        layers[chip.dataset.key].addTo(map);
+      });
+    }
+
+    function jumpToResult(idx) {
+      const d = allData[idx];
+      if (!d) return;
+      map.setView([d.lat, d.lng], 16);
+      d.marker.openPopup();
+    }
+
+    function clearSearch() {
+      document.getElementById('search-input').value = '';
+      document.getElementById('search-results').innerHTML = '';
+      exitSearchMode();
+    }
+
+    // ---- 高評価ハイライト ----
+    function makeTopRatedIcon() {
+      return L.divIcon({
+        html: `
+          <div style="position:relative;width:36px;height:52px;">
+            <div style="position:absolute;top:5px;left:6px;width:24px;height:24px;border-radius:50%;background:rgba(243,156,18,0.45);animation:topRatedPulse 1.8s ease-out infinite;"></div>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 52" width="36" height="52"
+                 style="position:absolute;top:0;left:0;filter:drop-shadow(0 2px 5px rgba(0,0,0,0.45));">
+              <path d="M18 2C9.7 2 3 8.7 3 17c0 10.6 15 33 15 33S33 27.6 33 17C33 8.7 26.3 2 18 2z"
+                    fill="#f39c12" stroke="#d68910" stroke-width="1.5"/>
+              <circle cx="18" cy="17" r="8" fill="white" opacity="0.9"/>
+              <text x="18" y="21" text-anchor="middle" font-size="13" fill="#e67e22"
+                    font-weight="bold" font-family="sans-serif">★</text>
+            </svg>
+          </div>`,
+        iconSize:   [36, 52],
+        iconAnchor: [18, 52],
+        popupAnchor:[0, -52],
+        className:  ''
+      });
+    }
+
+    const FAKE_COMMENTS = [
+      '素晴らしい場所でした！また来たいです。',
+      '歴史を感じる素敵なスポットです。',
+      '子どもたちも楽しめました。',
+      '写真映えする場所でおすすめです！',
+      'アクセスも良く、気軽に立ち寄れます。',
+      '大阪の魅力を感じる場所です。',
+      '思ったより良かったです。',
+      '景色がきれいで癒されました。',
+      '地元の人にも人気のスポットです。',
+      'ゆっくり散策できてよかったです。',
+      '雰囲気が最高でした。',
+      '子連れでも楽しめる場所です。',
+      '観光で来ましたが大満足でした。',
+      'ガイドブックに載っているだけありますね。',
+      '穴場スポットを発見した気分です！',
+    ];
+
+    // 初回のみ Firestore に仮レビューデータを投入する
+    // meta/seed_status.seeded フラグで冪等性を担保しているため、2回目以降はスキップされる
+    async function seedFakeData() {
+      try {
+        const metaRef = db.collection('meta').doc('seed_status');
+        const metaDoc = await metaRef.get();
+        if (metaDoc.exists && metaDoc.data().seeded) return;
+        if (allData.length < 3) return;
+
+        // 15スポットを allData から均等に選ぶ
+        const numSpots = Math.min(15, allData.length);
+        const step = allData.length / numSpots;
+        const RATINGS_PLAN = [
+          [5,5,5],[5,4,5],[4,5,4],[5,4,4],[4,4,5],[5,5,4],[4,4,4],[4,5,5],
+          [3,3,2],[2,3,3],[3,2,3],[4,3,3],[2,2,3],[3,3,3],[2,3,2]
+        ];
+
+        const batch = db.batch();
+        for (let i = 0; i < numSpots; i++) {
+          const idx = Math.min(Math.floor(i * step), allData.length - 1);
+          const spot  = allData[idx];
+          const rats  = RATINGS_PLAN[i] || [3, 3, 3];
+          rats.forEach((stars, ri) => {
+            const ref  = db.collection('reviews').doc();
+            const date = new Date();
+            date.setDate(date.getDate() - (i * 2 + ri));
+            batch.set(ref, {
+              spotKey: `${spot.lat},${spot.lng}`,
+              lat: spot.lat, lng: spot.lng,
+              stars,
+              comment: FAKE_COMMENTS[(i * 3 + ri) % FAKE_COMMENTS.length],
+              date: date.toLocaleDateString('ja-JP'),
+              createdAt: firebase.firestore.Timestamp.fromDate(date),
+              isFakeData: true
+            });
+          });
+        }
+        batch.set(metaRef, {
+          seeded: true,
+          seededAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        console.log('仮データを投入しました（', numSpots, 'スポット）');
+      } catch(e) {
+        console.warn('仮データ投入失敗:', e.message);
+      }
+    }
+
+    // 全レビューを読み込み、高評価スポットのハイライトとカテゴリ別評価分布を表示する
+    async function loadAndHighlight() {
+      try {
+        const snapshot = await db.collection('reviews').get();
+        if (snapshot.empty) return;
+
+        // spotKey → allData の高速ルックアップ用マップを作成
+        const spotLookup = {};
+        allData.forEach(s => { spotLookup[`${s.lat},${s.lng}`] = s; });
+
+        // スポットごとの集計 + カテゴリごとの評価分布を同時に計算
+        const ratingMap  = {};
+        const catRatings = {};
+
+        snapshot.docs.forEach(doc => {
+          const r   = doc.data();
+          const key = r.spotKey;
+
+          // スポット別集計
+          if (!ratingMap[key]) ratingMap[key] = { sum: 0, count: 0 };
+          ratingMap[key].sum   += r.stars;
+          ratingMap[key].count += 1;
+
+          // カテゴリ別集計
+          const spot = spotLookup[key];
+          if (spot) {
+            const ck = spot.catKey;
+            if (!catRatings[ck]) catRatings[ck] = { 1:0, 2:0, 3:0, 4:0, 5:0, total:0, sum:0 };
+            catRatings[ck][r.stars]++;
+            catRatings[ck].total++;
+            catRatings[ck].sum += r.stars;
+          }
+        });
+
+        // spotAvgRounded を更新して星フィルタUIを構築
+        renderStarFilter(ratingMap);
+
+        // avg >= 4.0 かつ 2件以上を「高評価」とみなしてハイライト
+        const topSpots = [];
+        allData.forEach(spot => {
+          const key    = `${spot.lat},${spot.lng}`;
+          const rating = ratingMap[key];
+          if (rating && rating.count >= 2) {
+            const avg = rating.sum / rating.count;
+            if (avg >= 4.0) {
+              spot.marker.setIcon(makeTopRatedIcon());
+              spot.marker.setZIndexOffset(1000);
+              topSpots.push({ ...spot, avg, count: rating.count });
+            }
+          }
+        });
+
+        topSpots.sort((a, b) => b.avg - a.avg || b.count - a.count);
+        renderTopSpots(topSpots);
+        renderCategoryRatings(catRatings);
+      } catch(e) {
+        console.warn('ハイライト読み込み失敗:', e.message);
+      }
+    }
+
+    function renderCategoryRatings(catRatings) {
+      const section = document.getElementById('cat-rating-section');
+      const list    = document.getElementById('cat-rating-list');
+
+      const entries = Object.entries(catRatings).filter(([, r]) => r.total > 0);
+      if (entries.length === 0) { section.style.display = 'none'; return; }
+
+      // 平均評価の高い順に並べる
+      entries.sort(([, a], [, b]) => (b.sum / b.total) - (a.sum / a.total));
+
+      const barColor = s => s >= 4 ? '#f39c12' : s === 3 ? '#f0ad4e' : '#bbb';
+
+      section.style.display = '';
+      list.innerHTML = entries.map(([key, rating]) => {
+        const cat      = CATEGORIES.find(c => c.key === key);
+        if (!cat) return '';
+        const avg      = rating.sum / rating.total;
+        const maxCount = Math.max(rating[1], rating[2], rating[3], rating[4], rating[5], 1);
+
+        return `
+          <div class="cat-rating-item">
+            <div class="cat-rating-label">
+              <div class="cat-rating-dot" style="background:${cat.color}"></div>
+              <span style="color:${cat.color}">${cat.label}</span>
+              <span style="color:#aaa;font-weight:normal;">&thinsp;${rating.total}件</span>
+              <span style="margin-left:auto;color:#e67e22;">${avg.toFixed(1)}★</span>
+            </div>
+            ${[5,4,3,2,1].map(s => {
+              const cnt = rating[s] || 0;
+              const pct = Math.round(cnt / maxCount * 100);
+              return `<div class="star-row">
+                <div class="star-label">${s}★</div>
+                <div class="star-bar-track">
+                  <div class="star-bar-fill" style="width:${pct}%;background:${barColor(s)};"></div>
+                </div>
+                <div class="star-count">${cnt}</div>
+              </div>`;
+            }).join('')}
+          </div>`;
+      }).join('');
+    }
+
+    function renderTopSpots(topSpots) {
+      const section = document.getElementById('top-spots-section');
+      const list    = document.getElementById('top-spots-list');
+      if (topSpots.length === 0) { section.style.display = 'none'; return; }
+      section.style.display = '';
+      list.innerHTML = topSpots.slice(0, 10).map((spot, i) => `
+        <div class="top-spot-item" onclick="jumpToSpot(${spot.lat},${spot.lng})">
+          <div class="top-spot-rank">${i + 1}</div>
+          <div class="top-spot-info">
+            <div class="top-spot-name" title="${escapeHtml(spot.name)}">${escapeHtml(spot.name)}</div>
+            <div class="top-spot-stars">
+              ${starsHtml(Math.round(spot.avg))}
+              <span style="color:#999;font-size:10px;">&ensp;${spot.avg.toFixed(1)}（${spot.count}件）</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function jumpToSpot(lat, lng) {
+      const spot = allData.find(s => s.lat === lat && s.lng === lng);
+      if (!spot) return;
+      map.setView([lat, lng], 16);
+      spot.marker.openPopup();
+    }
+
+    // ---- CSV 読み込み ----
+    Papa.parse('data/kankou.csv', {
+      download: true, header: true,
+      complete(results) {
+        results.data.forEach(row => {
+          const lat = parseFloat(row['緯度']);
+          const lng = parseFloat(row['経度']);
+          if (!isNaN(lat) && !isNaN(lng))
+            addMarker(row['名称'] || '', row['住所'] || '', '観光施設')(lat, lng);
+        });
+        onAllLoaded();
+      },
+      error() { onAllLoaded(); }
+    });
+
+    Papa.parse('data/bunkazai.csv', {
+      download: true, header: true,
+      complete(results) {
+        results.data.forEach(row => {
+          const lat = parseFloat(row['緯度']);
+          const lng = parseFloat(row['経度']);
+          if (!isNaN(lat) && !isNaN(lng))
+            addMarker(row['名称'] || '', row['住所'] || '', '文化財')(lat, lng);
+        });
+        onAllLoaded();
+      },
+      error() { onAllLoaded(); }
+    });
+
+    Papa.parse('data/park.csv', {
+      download: true, header: true,
+      complete(results) {
+        results.data.forEach(row => {
+          const lat = parseFloat(row['緯度']);
+          const lng = parseFloat(row['経度']);
+          if (!isNaN(lat) && !isNaN(lng))
+            addMarker(row['施設名'] || '', row['住所'] || '', '公園')(lat, lng);
+        });
+        onAllLoaded();
+      },
+      error() { onAllLoaded(); }
+    });
+  </script>
+</body>
+</html>
